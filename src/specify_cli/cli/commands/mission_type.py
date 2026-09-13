@@ -614,6 +614,11 @@ def close_cmd(
         # Flatten: drop the now-dangling coordination_branch marker so subsequent
         # commands for this mission don't trip CoordinationBranchDeleted (#2120).
         _flatten_discarded_mission(feature_dir)
+        # #704: the spec directory deliberately survives a discard (the
+        # retrospective lives there), so mark the mission instead of deleting it
+        # and let the dashboard filter on the marker. Written before the commit
+        # leg below so it lands in the same bookkeeping commit as the flatten.
+        _mark_mission_discarded(feature_dir)
         # #3716: the flatten is the LAST mutating write on the discard path and
         # previously had no commit leg, leaving ``meta.json`` modified-uncommitted
         # after a discard that reported success. Commit it to the PRIMARY surface.
@@ -843,6 +848,22 @@ def _flatten_discarded_mission(feature_dir: Path) -> None:
 
     with contextlib.suppress(FileNotFoundError):
         flatten_coordination_metadata(feature_dir)
+
+
+def _mark_mission_discarded(feature_dir: Path) -> None:
+    """Stamp ``discarded_at`` on a discarded mission (#704).
+
+    Tolerant in the same way as :func:`_flatten_discarded_mission`: a legacy
+    mission with no meta.json is a no-op rather than a hard failure of an
+    otherwise-successful discard. Unlike the flatten, this runs for every
+    topology — ``flatten_coordination_metadata`` no-ops when there is no
+    ``coordination_branch``, so a SINGLE_BRANCH/LANES mission would otherwise
+    carry no marker at all.
+    """
+    from specify_cli.mission_metadata import record_discard
+
+    with contextlib.suppress(FileNotFoundError, ValueError):
+        record_discard(feature_dir)
 
 
 def _meta_has_uncommitted_changes(repo_root: Path, meta_path: Path) -> bool:
