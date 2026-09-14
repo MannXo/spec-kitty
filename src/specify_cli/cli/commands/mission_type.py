@@ -859,10 +859,16 @@ def _mark_mission_discarded(feature_dir: Path) -> None:
     topology — ``flatten_coordination_metadata`` no-ops when there is no
     ``coordination_branch``, so a SINGLE_BRANCH/LANES mission would otherwise
     carry no marker at all.
+
+    Also tolerant of a CORRUPT/unparseable meta.json (``MissionMetaReadError``)
+    -- deliberately more tolerant than the flatten leg above. An abandoned
+    mission is exactly the one likely to hold a degraded meta.json, and by
+    this point the discard has already torn down branches and worktrees;
+    crashing here over a cosmetic dashboard marker is the wrong trade.
     """
     from specify_cli.mission_metadata import record_discard
 
-    with contextlib.suppress(FileNotFoundError, ValueError):
+    with contextlib.suppress(FileNotFoundError, MissionMetaReadError):
         record_discard(feature_dir)
 
 

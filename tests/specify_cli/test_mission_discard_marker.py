@@ -19,6 +19,7 @@ from typing import Any
 
 import pytest
 
+from specify_cli.core.paths import MissionMetaReadError
 from specify_cli.mission_metadata import load_meta_strict, record_discard, write_meta
 
 pytestmark = [pytest.mark.unit, pytest.mark.fast]
@@ -134,3 +135,36 @@ def test_mark_mission_discarded_stamps_a_normal_mission(tmp_path: Path) -> None:
     _mark_mission_discarded(feature_dir)
 
     assert load_meta_strict(feature_dir)["discarded_at"]
+
+
+def test_record_discard_on_a_corrupt_meta_raises_the_typed_read_error(
+    tmp_path: Path,
+) -> None:
+    # Pins the real taxonomy: a corrupt meta.json fails closed through
+    # _require_meta as the typed MissionMetaReadError, never a raw
+    # ValueError. The discard call site's suppress set has to match this
+    # exactly, or a real corrupt-meta failure escapes uncaught.
+    feature_dir = tmp_path / "kitty-specs" / _MISSION_SLUG
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "meta.json").write_text("{ not valid json", encoding="utf-8")
+
+    with pytest.raises(MissionMetaReadError):
+        record_discard(feature_dir)
+
+
+def test_mark_mission_discarded_is_a_noop_on_a_corrupt_meta(tmp_path: Path) -> None:
+    # The discard call site absorbs MissionMetaReadError too, not just
+    # FileNotFoundError: an abandoned mission is exactly the one likely to
+    # hold a degraded meta.json, and the discard has already torn down
+    # branches/worktrees by this point -- crashing over a cosmetic marker
+    # is the wrong trade.
+    from specify_cli.cli.commands.mission_type import _mark_mission_discarded
+
+    feature_dir = tmp_path / "kitty-specs" / _MISSION_SLUG
+    feature_dir.mkdir(parents=True)
+    corrupt = "{ not valid json"
+    (feature_dir / "meta.json").write_text(corrupt, encoding="utf-8")
+
+    _mark_mission_discarded(feature_dir)
+
+    assert (feature_dir / "meta.json").read_text(encoding="utf-8") == corrupt
