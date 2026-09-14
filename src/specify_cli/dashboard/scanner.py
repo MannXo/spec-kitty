@@ -224,7 +224,9 @@ def _derive_mission_status(kanban_stats: dict[str, Any], meta_data: dict[str, An
 
     - ``"discarded"`` — ``discarded_at`` is set: the mission was abandoned via
       ``mission close --discard`` (#704). Checked first, because an abandoned
-      mission's WP lane counts describe work that was thrown away
+      mission's WP lane counts describe work that was thrown away, not work
+      still active or done, so status must never be re-derived from them once
+      the mission is marked discarded.
     - ``"active"``  — WPs in flight, OR all WPs terminal but mission not yet accepted
     - ``"planned"`` — no WP is active and planned work remains
     - ``"done"``    — all WPs terminal AND ``accepted_at`` is set in meta.json
